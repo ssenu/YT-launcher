@@ -1,4 +1,4 @@
-# YT Launcher 설계
+﻿# YT Launcher 설계
 
 - 작성일: 2026-10-21
 - 저장소: https://github.com/ssenu/YT-launcher
@@ -86,7 +86,7 @@ YT-launcher/
 - 위치/크기는 조작 종료 500ms 후 저장 (디바운스).
 - 시작 시 저장된 사각형이 어떤 모니터의 작업 영역과도 충분히 겹치지 않으면(모니터 제거 등) 기본 위치로 리셋.
 - Win+D(바탕화면 보기): 위젯이 보이도록 유지하는 것이 목표. 구현 시 Windows 11 실기에서 검증하고, 바탕화면 부착 방식이 불안정하면 "바탕화면 보기 해제/전환 시 자동 재표시"로 대체한다. 어떤 경우에도 트레이 아이콘 클릭으로 재표시 가능.
-- 단일 인스턴스: `QLocalServer`(이름 `YTLauncher-<user>`)로 보장. 두 번째 실행은 기존 인스턴스에 "show" 메시지를 보내고 종료. 설치 프로그램 연동을 위해 Win32 named mutex `YTLauncherMutex`도 생성.
+- 단일 인스턴스: Win32 named mutex `YTLauncherMutex`가 1차 방어선이다 (설치 프로그램의 실행 중 감지에도 쓴다). 이미 존재하면 두 번째 실행은 창을 만들기 전에 종료하고, `QLocalServer`(이름 `YTLauncher-<user>`)로 기존 인스턴스에 "show" 메시지만 전달한다. QLocalServer는 알림 전달용이며 시작에 실패해도 실행은 계속된다.
 
 ### 4.1 화면 구성
 

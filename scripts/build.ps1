@@ -30,6 +30,8 @@ Write-Host "Building YT Launcher $Version"
     --distpath dist --workpath build `
     launcher.py
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
+$icon = Join-Path $root "dist\YTLauncher\_internal\yt_launcher\assets\icon.png"
+if (-not (Test-Path $icon)) { throw "icon.png가 묶음에 없습니다: $icon" }
 
 $iscc = $null
 $command = Get-Command iscc.exe -ErrorAction SilentlyContinue
