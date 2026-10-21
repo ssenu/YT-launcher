@@ -72,10 +72,9 @@ class Storage:
         """설정을 읽는다. 손상된 파일은 .bak으로 옮기고 (기본 설정, True)를 돌려준다."""
         try:
             raw = self.path.read_text(encoding="utf-8")
+            return config_from_dict(json.loads(raw)), False
         except FileNotFoundError:
             return Config(), False
-        try:
-            return config_from_dict(json.loads(raw)), False
         except (ValueError, KeyError, TypeError, AttributeError) as exc:
             log.warning("설정 파일 손상, 백업 후 초기화: %s", exc)
             os.replace(self.path, self.path.with_name(CONFIG_NAME + ".bak"))

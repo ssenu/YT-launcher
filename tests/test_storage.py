@@ -58,3 +58,13 @@ def test_invalid_structure_is_backed_up(tmp_path):
     config, recovered = storage.load()
     assert config == Config()
     assert recovered is True
+
+
+def test_non_utf8_file_is_backed_up(tmp_path):
+    storage = Storage(tmp_path)
+    storage.path.write_bytes(b"\xff\xfe\x00bad")
+    config, recovered = storage.load()
+    assert config == Config()
+    assert recovered is True
+    assert (tmp_path / "config.json.bak").read_bytes() == b"\xff\xfe\x00bad"
+    assert not storage.path.exists()
