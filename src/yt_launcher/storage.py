@@ -26,6 +26,7 @@ class Config:
     last_run_version: str = ""
     notified_version: str = ""
     chrome_notice_shown: bool = False
+    theme: str = "dark"
 
 
 def default_dir() -> Path:
@@ -42,6 +43,7 @@ def config_to_dict(config: Config) -> dict:
         "last_run_version": config.last_run_version,
         "notified_version": config.notified_version,
         "chrome_notice_shown": config.chrome_notice_shown,
+        "theme": config.theme,
     }
 
 
@@ -60,6 +62,7 @@ def config_from_dict(data: object) -> Config:
         last_run_version=str(data.get("last_run_version", "")),
         notified_version=str(data.get("notified_version", "")),
         chrome_notice_shown=bool(data.get("chrome_notice_shown", False)),
+        theme=str(data.get("theme", "dark")),
     )
 
 

@@ -80,6 +80,14 @@ class TileGrid(QListWidget):
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
         self.itemClicked.connect(self._on_item_clicked)
+        self._add_color = ADD_COLOR
+
+    def set_add_color(self, color: str) -> None:
+        """테마에 맞춰 ＋ 타일 색을 바꾼다."""
+        self._add_color = color
+        for i in range(self.count()):
+            if self.item(i).data(ID_ROLE) == ADD_ID:
+                self.item(i).setData(COLOR_ROLE, color)
 
     def set_tiles(self, tiles: list[Tile]) -> None:
         self.clear()
@@ -93,7 +101,7 @@ class TileGrid(QListWidget):
             self.addItem(item)
         add = QListWidgetItem("＋")
         add.setData(ID_ROLE, ADD_ID)
-        add.setData(COLOR_ROLE, ADD_COLOR)
+        add.setData(COLOR_ROLE, self._add_color)
         add.setToolTip("검색어 추가")
         add.setFlags(Qt.ItemIsEnabled)
         add.setSizeHint(TILE_SIZE)

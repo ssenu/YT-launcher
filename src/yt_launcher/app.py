@@ -79,6 +79,7 @@ class LauncherApp(QObject):
 
         self._restore_geometry()
         self.window.set_locked(self.config.locked)
+        self.window.set_theme(self.config.theme)
         self.window.set_tiles(self.config.tiles)
         self._apply_autostart_preference()
 
@@ -132,6 +133,7 @@ class LauncherApp(QObject):
         w.order_changed.connect(self.reorder)
         w.update_clicked.connect(self.start_update)
         w.geometry_changed.connect(self._save_geometry)
+        w.theme_changed.connect(self.set_theme)
 
         s = self.signals
         s.update_found.connect(self._on_update_found)
@@ -165,6 +167,10 @@ class LauncherApp(QObject):
 
     def _save_geometry(self, rect: Rect) -> None:
         self.config.window = rect
+        self._save()
+
+    def set_theme(self, name: str) -> None:
+        self.config.theme = name
         self._save()
 
     def set_locked(self, locked: bool) -> None:

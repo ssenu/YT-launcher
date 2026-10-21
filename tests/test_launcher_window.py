@@ -79,3 +79,55 @@ def test_children_use_arrow_cursor(qapp):
     assert window.header.cursor().shape() == Qt.ArrowCursor
     assert window.progress.cursor().shape() == Qt.ArrowCursor
     assert window.header.update_button.cursor().shape() == Qt.PointingHandCursor
+
+def test_header_shows_byline(qapp):
+    from PySide6.QtWidgets import QLabel
+
+    window = LauncherWindow(QMenu())
+    labels = {label.objectName(): label.text() for label in window.header.findChildren(QLabel)}
+    assert labels["title"] == "YT Launcher"
+    assert labels["byline"] == "by_ssenu"
+
+
+def test_theme_menu_lists_three_themes(qapp):
+    window = LauncherWindow(QMenu())
+    assert window.theme_button.objectName() == "themeButton"
+    assert [a.text() for a in window.theme_menu.actions()] == ["라이트", "다크", "세피아"]
+    assert window.theme == "dark"
+
+
+def test_choosing_theme_restyles_and_emits(qapp):
+    from yt_launcher.ui import themes
+    from yt_launcher.ui.tile_grid import ADD_ID, COLOR_ROLE, ID_ROLE
+
+    window = LauncherWindow(QMenu())
+    window.set_tiles([Tile(query="a")])
+    got = []
+    window.theme_changed.connect(got.append)
+    light = window.theme_menu.actions()[0]
+    light.trigger()
+    assert got == ["light"]
+    assert window.theme == "light"
+    assert light.isChecked()
+    assert themes.THEMES["light"]["bg"] in window.styleSheet()
+    add_item = window.grid.item(window.grid.count() - 1)
+    assert add_item.data(ID_ROLE) == ADD_ID
+    assert add_item.data(COLOR_ROLE) == themes.THEMES["light"]["add"]
+    light.trigger()  # 같은 테마를 다시 고르면 신호 없음
+    assert got == ["light"]
+
+
+def test_set_theme_keeps_add_color_after_retile(qapp):
+    from yt_launcher.ui import themes
+    from yt_launcher.ui.tile_grid import COLOR_ROLE
+
+    window = LauncherWindow(QMenu())
+    window.set_theme("sepia")
+    window.set_tiles([Tile(query="a")])
+    assert window.grid.item(1).data(COLOR_ROLE) == themes.THEMES["sepia"]["add"]
+
+
+def test_unknown_theme_falls_back_to_dark(qapp):
+    window = LauncherWindow(QMenu())
+    window.set_theme("neon")
+    assert window.theme == "dark"

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PySide6.QtCore import QEvent, QPoint, Qt, QTimer, Signal
+from PySide6.QtGui import QActionGroup
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -20,6 +21,7 @@ from PySide6.QtWidgets import (
 from .. import win32
 from ..geometry import Rect
 from ..version import APP_NAME
+from . import themes
 from .tile_grid import TileGrid
 
 EDGE = 6
@@ -27,18 +29,7 @@ MIN_W = 240
 MIN_H = 200
 GEOMETRY_SAVE_DELAY_MS = 500
 
-STYLE = """
-#launcher { background: #16181D; border: 1px solid #2A2E37; }
-#header { background: #1F232B; }
-#title { color: #F1F3F5; font-weight: bold; font-size: 13px; }
-#updateBadge { background: #E53935; color: #FFFFFF; border: none; border-radius: 9px;
-               padding: 2px 10px; font-weight: bold; }
-#menuButton { color: #C9CED6; background: transparent; border: none; font-size: 16px; padding: 0 6px; }
-#menuButton::menu-indicator { image: none; }
-#progress { background: #2A2E37; border: none; }
-#progress::chunk { background: #E53935; }
-#tileGrid { background: transparent; border: none; }
-"""
+BYLINE = "by_ssenu"
 
 _CURSORS = {
     Qt.Edge.LeftEdge | Qt.Edge.TopEdge: Qt.SizeFDiagCursor,
@@ -63,6 +54,8 @@ class Header(QWidget):
 
         title = QLabel(APP_NAME)
         title.setObjectName("title")
+        byline = QLabel(BYLINE)
+        byline.setObjectName("byline")
         self.update_button = QPushButton()
         self.update_button.setObjectName("updateBadge")
         self.update_button.setCursor(Qt.PointingHandCursor)
@@ -76,6 +69,8 @@ class Header(QWidget):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 6, 6, 6)
         layout.addWidget(title)
+        layout.addSpacing(4)
+        layout.addWidget(byline, 0, Qt.AlignBottom)
         layout.addStretch(1)
         layout.addWidget(self.update_button)
         layout.addWidget(menu_button)
@@ -95,6 +90,7 @@ class LauncherWindow(QWidget):
     order_changed = Signal(list)
     update_clicked = Signal()
     geometry_changed = Signal(object)
+    theme_changed = Signal(str)
 
     def __init__(self, menu: QMenu):
         super().__init__(None, Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnBottomHint)
@@ -103,7 +99,8 @@ class LauncherWindow(QWidget):
         self.setWindowTitle(APP_NAME)
         self.setMinimumSize(MIN_W, MIN_H)
         self.setMouseTracking(True)
-        self.setStyleSheet(STYLE)
+        self._theme = themes.DEFAULT_THEME
+        self.setStyleSheet(themes.stylesheet(self._theme))
         self._locked = False
         self._pinned = False
 
@@ -115,8 +112,28 @@ class LauncherWindow(QWidget):
         self.progress.hide()
         self.grid = TileGrid(self)
         self.grid.setObjectName("tileGrid")
+        self.theme_menu = QMenu(self)
+        self._theme_group = QActionGroup(self)
+        self._theme_actions = {}
+        for name, label in themes.THEME_LABELS.items():
+            action = self.theme_menu.addAction(label)
+            action.setCheckable(True)
+            action.setChecked(name == self._theme)
+            action.triggered.connect(lambda _checked=False, n=name: self._choose_theme(n))
+            self._theme_group.addAction(action)
+            self._theme_actions[name] = action
+        self.theme_button = QToolButton(self)
+        self.theme_button.setObjectName("themeButton")
+        self.theme_button.setText("🎨")
+        self.theme_button.setToolTip("테마 색 설정")
+        self.theme_button.setMenu(self.theme_menu)
+        self.theme_button.setPopupMode(QToolButton.InstantPopup)
+        footer = QHBoxLayout()
+        footer.setContentsMargins(0, 0, 2, 2)
+        footer.addStretch(1)
+        footer.addWidget(self.theme_button)
         # 가장자리에서 바뀐 크기 조절 커서가 자식 위젯에 남지 않도록 고정한다.
-        for child in (self.header, self.grid, self.progress):
+        for child in (self.header, self.grid, self.progress, self.theme_button):
             child.setCursor(Qt.ArrowCursor)
 
         layout = QVBoxLayout(self)
@@ -125,6 +142,7 @@ class LauncherWindow(QWidget):
         layout.addWidget(self.header)
         layout.addWidget(self.progress)
         layout.addWidget(self.grid, 1)
+        layout.addLayout(footer)
 
         self.header.update_button.clicked.connect(lambda: self.update_clicked.emit())
         self.grid.tile_clicked.connect(self.tile_clicked)
@@ -146,6 +164,22 @@ class LauncherWindow(QWidget):
         self._locked = locked
         if locked:
             self.unsetCursor()
+
+    @property
+    def theme(self) -> str:
+        return self._theme
+
+    def set_theme(self, name: str) -> None:
+        self._theme = themes.resolve_theme(name)
+        self.setStyleSheet(themes.stylesheet(self._theme))
+        self.grid.set_add_color(themes.add_tile_color(self._theme))
+        self._theme_actions[self._theme].setChecked(True)
+
+    def _choose_theme(self, name: str) -> None:
+        if name == self._theme:
+            return
+        self.set_theme(name)
+        self.theme_changed.emit(self._theme)
 
     def show_update_badge(self, text: str) -> None:
         self.header.update_button.setText(text)

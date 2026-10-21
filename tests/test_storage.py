@@ -26,6 +26,7 @@ def test_roundtrip(tmp_path):
         last_run_version="0.1.0",
         notified_version="0.2.0",
         chrome_notice_shown=True,
+        theme="sepia",
     )
     storage.save(config)
     loaded, recovered = storage.load()
