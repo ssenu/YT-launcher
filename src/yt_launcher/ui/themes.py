@@ -53,7 +53,7 @@ _STYLE = """
                padding: 2px 10px; font-weight: bold; }}
 #menuButton {{ color: {muted}; background: transparent; border: none; font-size: 16px; padding: 0 6px; }}
 #menuButton::menu-indicator {{ image: none; }}
-#themeButton {{ color: {muted}; background: transparent; border: none; font-size: 15px; padding: 0 4px; }}
+#themeButton {{ background: transparent; border: none; padding: 0; }}
 #themeButton::menu-indicator {{ image: none; }}
 #progress {{ background: {track}; border: none; }}
 #progress::chunk {{ background: #E53935; }}

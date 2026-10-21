@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtCore import QEvent, QPoint, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QPoint, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QActionGroup
 from PySide6.QtWidgets import (
     QApplication,
@@ -22,6 +22,7 @@ from .. import win32
 from ..geometry import Rect
 from ..version import APP_NAME
 from . import themes
+from .palette_icon import ICON_SIZE, palette_icon
 from .tile_grid import TileGrid
 
 EDGE = 6
@@ -124,10 +125,12 @@ class LauncherWindow(QWidget):
             self._theme_actions[name] = action
         self.theme_button = QToolButton(self)
         self.theme_button.setObjectName("themeButton")
-        self.theme_button.setText("🎨")
+        self.theme_button.setIconSize(QSize(ICON_SIZE, ICON_SIZE))
+        self.theme_button.setFixedSize(ICON_SIZE + 2, ICON_SIZE + 2)
         self.theme_button.setToolTip("테마 색 설정")
         self.theme_button.setMenu(self.theme_menu)
         self.theme_button.setPopupMode(QToolButton.InstantPopup)
+        self._refresh_theme_icon()
         footer = QHBoxLayout()
         footer.setContentsMargins(0, 0, 2, 2)
         footer.addStretch(1)
@@ -173,7 +176,12 @@ class LauncherWindow(QWidget):
         self._theme = themes.resolve_theme(name)
         self.setStyleSheet(themes.stylesheet(self._theme))
         self.grid.set_add_color(themes.add_tile_color(self._theme))
+        self._refresh_theme_icon()
         self._theme_actions[self._theme].setChecked(True)
+
+    def _refresh_theme_icon(self) -> None:
+        colors = themes.THEMES[self._theme]
+        self.theme_button.setIcon(palette_icon(colors["header"], colors["border"]))
 
     def _choose_theme(self, name: str) -> None:
         if name == self._theme:

@@ -131,3 +131,12 @@ def test_unknown_theme_falls_back_to_dark(qapp):
     window = LauncherWindow(QMenu())
     window.set_theme("neon")
     assert window.theme == "dark"
+
+
+def test_theme_button_uses_drawn_palette_icon(qapp):
+    window = LauncherWindow(QMenu())
+    assert window.theme_button.text() == ""
+    assert not window.theme_button.icon().isNull()
+    before = window.theme_button.icon().pixmap(30).toImage()
+    window.set_theme("light")
+    assert window.theme_button.icon().pixmap(30).toImage() != before  # 테마에 맞춰 다시 그림
