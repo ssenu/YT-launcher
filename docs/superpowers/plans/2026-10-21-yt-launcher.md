@@ -685,8 +685,8 @@ def test_create_mutex_returns_handle():
 
 
 def test_bottom_and_pin_ignore_invalid_window():
-    win32.send_to_bottom(0)
-    win32.pin_to_desktop(0)
+    win32.send_to_bottom(0)  # 잘못된 핸들이어도 예외 없음
+    assert win32.pin_to_desktop(0) is False
 ```
 
 - [ ] **Step 2: 테스트 실패 확인**
