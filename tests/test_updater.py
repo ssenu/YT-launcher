@@ -194,6 +194,33 @@ def test_download_progress_error_cleans_partial(tmp_path):
     assert list(tmp_path.iterdir()) == []
 
 
+def test_download_and_verify_bad_sums_encoding(tmp_path):
+    release = updater.parse_release(release_json())
+    opener = FakeOpener({
+        "https://dl/sums.txt": b"\xff\xfe\x00bad",
+        "https://dl/setup.exe": INSTALLER,
+    })
+    with pytest.raises(UpdateError):
+        updater.download_and_verify(release, tmp_path, opener=opener)
+    assert [r.full_url for r in opener.requests] == ["https://dl/sums.txt"]
+
+
+class IncompleteReadResponse:
+    def read(self, n=-1):
+        raise http.client.IncompleteRead(b"")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def test_fetch_latest_incomplete_read_raises():
+    with pytest.raises(UpdateError):
+        updater.fetch_latest("ssenu/YT-launcher", opener=lambda request, timeout=None: IncompleteReadResponse())
+
+
 def test_download_and_verify_requires_assets(tmp_path):
     release = Release("v0.2.0", "0.2.0", "", None, None)
     with pytest.raises(UpdateError):
