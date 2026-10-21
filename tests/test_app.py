@@ -1,9 +1,9 @@
-from yt_launcher.app import LauncherApp
+﻿from yt_launcher.app import LauncherApp
 from yt_launcher.autostart import AutoStart
 from yt_launcher.geometry import Rect
 from yt_launcher.models import Tile
 from yt_launcher.storage import Config, Storage
-from yt_launcher.updater import Release
+from yt_launcher.updater import Asset, Release
 from yt_launcher.version import __version__
 
 
@@ -109,3 +109,24 @@ def test_set_locked_persists(qapp, tmp_path):
     app = make_app(qapp, storage)
     app.set_locked(True)
     assert storage.load()[0].locked is True
+
+
+def test_release_without_assets_shows_no_badge(qapp, tmp_path, monkeypatch):
+    app = make_app(qapp, Storage(tmp_path))
+    release = Release("v99.0.0", "99.0.0", "https://example/release", None, None)
+    monkeypatch.setattr("yt_launcher.app.updater.fetch_latest", lambda repo: release)
+    app._check_in_background(False)
+    qapp.processEvents()
+    assert app.window.header.update_button.isHidden()
+    assert app.release is None
+
+
+def test_release_with_assets_shows_badge(qapp, tmp_path, monkeypatch):
+    app = make_app(qapp, Storage(tmp_path))
+    asset = Asset("Setup.exe", "https://example/Setup.exe", 1)
+    release = Release("v99.0.0", "99.0.0", "https://example/release", asset, asset)
+    monkeypatch.setattr("yt_launcher.app.updater.fetch_latest", lambda repo: release)
+    app._check_in_background(False)
+    qapp.processEvents()
+    assert not app.window.header.update_button.isHidden()
+    assert app.release is release

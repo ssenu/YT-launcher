@@ -1,4 +1,4 @@
-"""바탕화면 위젯 형태의 런처 창."""
+﻿"""바탕화면 위젯 형태의 런처 창."""
 
 from __future__ import annotations
 
@@ -115,6 +115,9 @@ class LauncherWindow(QWidget):
         self.progress.hide()
         self.grid = TileGrid(self)
         self.grid.setObjectName("tileGrid")
+        # 가장자리에서 바뀐 크기 조절 커서가 자식 위젯에 남지 않도록 고정한다.
+        for child in (self.header, self.grid, self.progress):
+            child.setCursor(Qt.ArrowCursor)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(EDGE, EDGE, EDGE, EDGE)
@@ -201,6 +204,10 @@ class LauncherWindow(QWidget):
         elif pos.y() >= self.height() - EDGE:
             edges |= Qt.Edge.BottomEdge
         return edges
+
+    def leaveEvent(self, event) -> None:
+        self.unsetCursor()
+        super().leaveEvent(event)
 
     def mouseMoveEvent(self, event) -> None:
         cursor = None if self._locked else _CURSORS.get(self._edges_at(event.position().toPoint()))

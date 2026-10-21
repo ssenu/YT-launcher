@@ -1,4 +1,4 @@
-"""Win32 API 래퍼 (ctypes). 실패해도 예외 대신 False/None을 돌려준다."""
+﻿"""Win32 API 래퍼 (ctypes). 실패해도 예외 대신 False/None을 돌려준다."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ SWP_NOMOVE = 0x0002
 SWP_NOACTIVATE = 0x0010
 GWLP_HWNDPARENT = -8
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+ERROR_ALREADY_EXISTS = 183
 ASFW_ANY = 0xFFFFFFFF
 CHROME_CLASS = "Chrome_WidgetWin_1"
 
@@ -181,6 +182,13 @@ def pin_to_desktop(hwnd: int) -> bool:
     return True
 
 
-def create_mutex(name: str) -> int | None:
+def acquire_mutex(name: str) -> tuple[int | None, bool]:
+    """명명된 뮤텍스를 만든다. (핸들, 이미 다른 프로세스가 가지고 있었는지)를 돌려준다."""
+    ctypes.set_last_error(0)
     handle = kernel32.CreateMutexW(None, False, name)
-    return int(handle) if handle else None
+    existed = ctypes.get_last_error() == ERROR_ALREADY_EXISTS
+    return (int(handle) if handle else None), existed
+
+
+def create_mutex(name: str) -> int | None:
+    return acquire_mutex(name)[0]

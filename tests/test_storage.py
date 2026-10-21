@@ -68,3 +68,20 @@ def test_non_utf8_file_is_backed_up(tmp_path):
     assert recovered is True
     assert (tmp_path / "config.json.bak").read_bytes() == b"\xff\xfe\x00bad"
     assert not storage.path.exists()
+
+
+def test_overflow_value_is_backed_up(tmp_path):
+    storage = Storage(tmp_path)
+    storage.path.write_text('{"window": {"x": 1e999, "y": 0, "w": 1, "h": 1}}', encoding="utf-8")
+    assert storage.load() == (Config(), True)
+
+
+def test_backup_failure_does_not_raise(tmp_path, monkeypatch):
+    storage = Storage(tmp_path)
+    storage.path.write_text("{not json", encoding="utf-8")
+
+    def deny(*args, **kwargs):
+        raise PermissionError("denied")
+
+    monkeypatch.setattr("yt_launcher.storage.os.replace", deny)
+    assert storage.load() == (Config(), True)

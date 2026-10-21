@@ -1,4 +1,4 @@
-"""설정 파일(config.json) 읽기·쓰기."""
+﻿"""설정 파일(config.json) 읽기·쓰기."""
 
 from __future__ import annotations
 
@@ -75,9 +75,12 @@ class Storage:
             return config_from_dict(json.loads(raw)), False
         except FileNotFoundError:
             return Config(), False
-        except (ValueError, KeyError, TypeError, AttributeError) as exc:
+        except (ValueError, KeyError, TypeError, AttributeError, OverflowError, RecursionError) as exc:
             log.warning("설정 파일 손상, 백업 후 초기화: %s", exc)
-            os.replace(self.path, self.path.with_name(CONFIG_NAME + ".bak"))
+            try:
+                os.replace(self.path, self.path.with_name(CONFIG_NAME + ".bak"))
+            except OSError:
+                log.exception("손상된 설정 파일 백업 실패")
             return Config(), True
 
     def save(self, config: Config) -> None:

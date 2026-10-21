@@ -1,4 +1,4 @@
-from PySide6.QtCore import QPoint, Qt
+﻿from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
 from yt_launcher.geometry import Rect
@@ -70,3 +70,12 @@ def test_tray_click_requests_show(qapp):
     tray._on_activated(QSystemTrayIcon.ActivationReason.Trigger)
     tray._on_activated(QSystemTrayIcon.ActivationReason.Context)
     assert shown == [True]
+
+
+def test_children_use_arrow_cursor(qapp):
+    window = LauncherWindow(QMenu())
+    window.setCursor(Qt.SizeHorCursor)  # 가장자리에서 바뀐 커서가 자식에게 새지 않아야 한다
+    assert window.grid.cursor().shape() == Qt.ArrowCursor
+    assert window.header.cursor().shape() == Qt.ArrowCursor
+    assert window.progress.cursor().shape() == Qt.ArrowCursor
+    assert window.header.update_button.cursor().shape() == Qt.PointingHandCursor

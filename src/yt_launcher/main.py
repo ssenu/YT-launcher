@@ -1,4 +1,4 @@
-"""앱 진입점."""
+﻿"""앱 진입점."""
 
 from __future__ import annotations
 
@@ -43,13 +43,17 @@ def main() -> int:
     app.setApplicationName(APP_NAME)
     app.setQuitOnLastWindowClosed(False)
 
+    # 명명된 뮤텍스가 중복 실행 방지의 기준이다 (설치 프로그램의 실행 중 감지에도 쓴다).
+    # 핸들은 프로세스가 끝날 때까지 일부러 닫지 않고 들고 있는다.
+    mutex_handle, existed = win32.acquire_mutex(MUTEX_NAME)
     instance = SingleInstance(f"YTLauncher-{getpass.getuser()}")
-    if not instance.acquire():
+    if existed:
+        instance.notify_existing()
         return 0
-    mutex = win32.create_mutex(MUTEX_NAME)  # 설치 프로그램이 실행 중 여부를 감지하는 데 쓴다
+    if mutex_handle is None:
+        logging.getLogger(__name__).warning("뮤텍스를 만들지 못했습니다")
+    instance.acquire()
 
     launcher = LauncherApp(app, Storage(data_dir))
     instance.activated.connect(launcher.show_launcher)
-    code = app.exec()
-    del mutex
-    return code
+    return app.exec()

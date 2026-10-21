@@ -1,8 +1,9 @@
-"""애플리케이션 컨트롤러: 설정·창·트레이·크롬 실행·업데이트를 연결한다."""
+﻿"""애플리케이션 컨트롤러: 설정·창·트레이·크롬 실행·업데이트를 연결한다."""
 
 from __future__ import annotations
 
 import logging
+import shutil
 import sys
 import tempfile
 import threading
@@ -290,7 +291,11 @@ class LauncherApp(QObject):
             self.signals.update_none.emit(manual, False)
             return
         if release and updater.is_newer(release.version, __version__):
-            self.signals.update_found.emit(release)
+            if release.installer is not None and release.sums is not None:
+                self.signals.update_found.emit(release)
+            else:
+                log.warning("릴리스 %s에 설치 파일 또는 SHA256SUMS가 없어 건너뜁니다", release.tag)
+                self.signals.update_none.emit(manual, True)
         else:
             self.signals.update_none.emit(manual, True)
 
@@ -325,6 +330,7 @@ class LauncherApp(QObject):
     def _download_in_background(self, release: updater.Release) -> None:
         dest = Path(tempfile.gettempdir()) / UPDATE_DIR_NAME
         try:
+            shutil.rmtree(dest, ignore_errors=True)  # 이전 시도의 찌꺼기 제거
             path = updater.download_and_verify(release, dest, progress=self.signals.download_progress.emit)
         except Exception as exc:
             log.warning("업데이트 다운로드 실패: %s", exc)
@@ -335,7 +341,7 @@ class LauncherApp(QObject):
     def _on_download_done(self, path: Path) -> None:
         try:
             updater.launch_installer(path)
-        except OSError as exc:
+        except Exception as exc:
             self._on_download_failed(str(exc))
             return
         self.quit()
@@ -351,5 +357,9 @@ class LauncherApp(QObject):
         webbrowser.open(url)
 
     def quit(self) -> None:
+        # 디바운스 중인 위치·크기 저장을 종료 전에 즉시 반영한다.
+        if self.window._geometry_timer.isActive():
+            self.window._geometry_timer.stop()
+            self.window._emit_geometry()
         self.tray.hide()
         self.qapp.quit()
