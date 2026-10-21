@@ -23,11 +23,16 @@ jobs:
       - name: Test
         run: python -m pytest -q
       - name: Set version from tag
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
-          $version = "${{ github.ref_name }}".TrimStart("v")
+          $version = $env:TAG.TrimStart("v")
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "잘못된 태그 형식: $env:TAG" }
           $file = "src/yt_launcher/version.py"
           (Get-Content $file -Raw) -replace '__version__ = "[^"]*"', "__version__ = `"$version`"" |
             Set-Content $file -Encoding utf8NoBOM -NoNewline
+          python -c "import sys; sys.path.insert(0, 'src'); import yt_launcher.version as v; assert v.__version__ == sys.argv[1], v.__version__" $version
+          if ($LASTEXITCODE -ne 0) { throw "version.py 갱신 확인 실패" }
           "APP_VERSION=$version" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
       - name: Install Inno Setup
         run: |
@@ -42,4 +47,5 @@ jobs:
           files: |
             dist/installer/YT-Launcher-Setup-${{ env.APP_VERSION }}.exe
             dist/installer/SHA256SUMS.txt
+          fail_on_unmatched_files: true
           generate_release_notes: true
