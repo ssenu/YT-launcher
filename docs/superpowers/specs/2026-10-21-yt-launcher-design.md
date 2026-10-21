@@ -58,7 +58,8 @@ YT-launcher/
 
 - **models**: `Tile` dataclass. `id`는 UUID 문자열. `name`이 비면 `query`를 표시명으로 사용.
 - **storage**: `%APPDATA%\YT-Launcher\config.json`.
-  - 스키마: `{ "schema": 1, "tiles": [Tile...], "window": {x, y, w, h}, "locked": bool }`
+  - 스키마: `{ "schema": 1, "tiles": [Tile...], "window": {x, y, w, h}, "locked": bool, "autostart": bool|null, "last_run_version": str, "notified_version": str, "chrome_notice_shown": bool }`
+  - `autostart`는 사용자가 앱에서 토글한 값. `null`이면 설치 프로그램 설정을 따르고, 값이 있으면 시작 시 Run 키를 그 값에 맞춘다 (업데이트 설치가 Run 키를 되살려도 사용자 선택 유지).
   - 저장은 임시 파일에 쓴 뒤 `os.replace`로 교체 (원자적).
   - JSON 파싱 실패 시 `config.json.bak`으로 옮기고 기본 설정으로 시작, UI에 1회 알림.
   - 리스트 순서 = 타일 표시 순서.
@@ -114,7 +115,8 @@ YT-launcher/
 
 - `PrivilegesRequired=lowest`, 설치 경로 `{localappdata}\Programs\YT-Launcher` → UAC 없음, "설정 → 앱"에 등록/제거 가능.
 - 고정 `AppId` GUID로 업그레이드 시 덮어쓰기.
-- `AppMutex=YTLauncherMutex`로 실행 중 감지, `CloseApplications=yes`.
+- 실행 중인 앱 처리: `[Code]`에서 `CheckForMutexes('YTLauncherMutex')`로 감지. 조용한 설치(자동 업데이트)는 앱이 스스로 종료할 때까지 최대 10초 대기, 그래도 남아 있으면(또는 일반 설치/제거면 즉시) `taskkill`. `CloseApplications=force`.
+  (`AppMutex` 지시어는 조용한 설치에서 대기 없이 실패할 수 있어 쓰지 않는다.)
 - 시작 메뉴 바로가기 기본, 바탕화면 바로가기는 선택 태스크.
 - 태스크 "윈도우 시작 시 실행"(기본 체크) → HKCU Run 등록. 제거 시 Run 값 삭제(`uninsdeletevalue`).
 - `[Run]` 항목은 `postinstall` 플래그 없이(조용한 설치에서도 실행되도록) `nowait`로 앱 재실행. 일반 설치에서는 마지막 페이지에서 실행 체크박스 제공.
