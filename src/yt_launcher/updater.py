@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import os
 import re
@@ -87,9 +88,14 @@ def fetch_latest(repo: str = REPO, opener=urlopen) -> Release | None:
         if exc.code == 404:
             return None
         raise UpdateError(f"릴리스 정보를 가져오지 못했습니다: {exc}") from exc
-    except (OSError, ValueError) as exc:
+    except (OSError, http.client.HTTPException, ValueError) as exc:
         raise UpdateError(f"릴리스 정보를 가져오지 못했습니다: {exc}") from exc
-    return parse_release(data) if isinstance(data, dict) else None
+    if not isinstance(data, dict):
+        return None
+    try:
+        return parse_release(data)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise UpdateError(f"릴리스 정보 형식이 올바르지 않습니다: {exc}") from exc
 
 
 def parse_sums(text: str) -> dict[str, str]:
@@ -110,23 +116,36 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def download(asset: Asset, dest: Path, progress: Progress | None = None, opener=urlopen) -> Path:
+def download(
+    asset: Asset,
+    dest: Path,
+    progress: Progress | None = None,
+    opener=urlopen,
+    expected_sha256: str | None = None,
+) -> Path:
+    """`.part`로 받으며 해시를 계산하고, 성공(해시 일치 포함)한 뒤에만 최종 이름으로 옮긴다."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     partial = dest.with_name(dest.name + ".part")
+    digest = hashlib.sha256()
     done = 0
     try:
-        with opener(_request(asset.url, "application/octet-stream"), timeout=TIMEOUT) as response, open(
-            partial, "wb"
-        ) as out:
-            while chunk := response.read(CHUNK):
-                out.write(chunk)
-                done += len(chunk)
-                if progress:
-                    progress(done, asset.size)
-    except OSError as exc:
+        try:
+            with opener(_request(asset.url, "application/octet-stream"), timeout=TIMEOUT) as response, open(
+                partial, "wb"
+            ) as out:
+                while chunk := response.read(CHUNK):
+                    out.write(chunk)
+                    digest.update(chunk)
+                    done += len(chunk)
+                    if progress:
+                        progress(done, asset.size)
+            if expected_sha256 is not None and digest.hexdigest() != expected_sha256.lower():
+                raise UpdateError("설치 파일 해시가 일치하지 않습니다.")
+            os.replace(partial, dest)
+        except (OSError, http.client.HTTPException) as exc:
+            raise UpdateError(f"다운로드 실패: {exc}") from exc
+    finally:
         partial.unlink(missing_ok=True)
-        raise UpdateError(f"다운로드 실패: {exc}") from exc
-    os.replace(partial, dest)
     return dest
 
 
@@ -136,14 +155,16 @@ def download_and_verify(
     if release.installer is None or release.sums is None:
         raise UpdateError("릴리스에 설치 파일 또는 SHA256SUMS.txt가 없습니다.")
     sums_path = download(release.sums, dest_dir / SUMS_NAME, opener=opener)
-    expected = parse_sums(sums_path.read_text(encoding="utf-8-sig")).get(release.installer.name)
+    try:
+        sums_text = sums_path.read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise UpdateError(f"SHA256SUMS.txt를 읽지 못했습니다: {exc}") from exc
+    expected = parse_sums(sums_text).get(release.installer.name)
     if not expected:
         raise UpdateError("SHA256SUMS.txt에 설치 파일 해시가 없습니다.")
-    installer_path = download(release.installer, dest_dir / release.installer.name, progress, opener)
-    if sha256_file(installer_path) != expected:
-        installer_path.unlink(missing_ok=True)
-        raise UpdateError("설치 파일 해시가 일치하지 않습니다.")
-    return installer_path
+    installer_path = dest_dir / release.installer.name
+    installer_path.unlink(missing_ok=True)
+    return download(release.installer, installer_path, progress, opener, expected_sha256=expected)
 
 
 def launch_installer(path: Path, popen=subprocess.Popen) -> None:

@@ -1,4 +1,5 @@
 import hashlib
+import http.client
 import io
 import json
 import subprocess
@@ -128,6 +129,69 @@ def test_download_and_verify_hash_mismatch(tmp_path):
     with pytest.raises(UpdateError):
         updater.download_and_verify(release, tmp_path, opener=opener)
     assert not (tmp_path / "YT-Launcher-Setup-0.2.0.exe").exists()
+    assert not list(tmp_path.glob("*.part"))
+
+
+def test_download_and_verify_mismatch_removes_stale_installer(tmp_path):
+    release = updater.parse_release(release_json())
+    stale = tmp_path / "YT-Launcher-Setup-0.2.0.exe"
+    stale.write_bytes(b"stale")
+    opener = FakeOpener({
+        "https://dl/sums.txt": f"{'0' * 64}  YT-Launcher-Setup-0.2.0.exe\n".encode(),
+        "https://dl/setup.exe": INSTALLER,
+    })
+    with pytest.raises(UpdateError):
+        updater.download_and_verify(release, tmp_path, opener=opener)
+    assert not stale.exists()
+    assert not list(tmp_path.glob("*.part"))
+
+
+class BrokenResponse:
+    """첫 read()는 data를 돌려주고, 그다음 read()는 연결이 중간에 끊긴 것처럼 실패한다."""
+
+    def __init__(self, data):
+        self.data = data
+        self.calls = 0
+
+    def read(self, n=-1):
+        self.calls += 1
+        if self.calls == 1:
+            return self.data
+        raise http.client.IncompleteRead(b"")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def test_download_incomplete_read_raises_and_cleans_partial(tmp_path):
+    asset = Asset("YT-Launcher-Setup-0.2.0.exe", "https://dl/setup.exe", 100)
+    response = BrokenResponse(b"partial")
+    with pytest.raises(UpdateError):
+        updater.download(asset, tmp_path / asset.name, opener=lambda request, timeout=None: response)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_fetch_latest_asset_missing_url_raises():
+    url = "https://api.github.com/repos/ssenu/YT-launcher/releases/latest"
+    data = release_json(assets=[{"name": "x"}])
+    opener = FakeOpener({url: json.dumps(data).encode()})
+    with pytest.raises(UpdateError):
+        updater.fetch_latest("ssenu/YT-launcher", opener=opener)
+
+
+def test_download_progress_error_cleans_partial(tmp_path):
+    asset = Asset("YT-Launcher-Setup-0.2.0.exe", "https://dl/setup.exe", len(INSTALLER))
+    opener = FakeOpener({"https://dl/setup.exe": INSTALLER})
+
+    def failing_progress(done, total):
+        raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError):
+        updater.download(asset, tmp_path / asset.name, progress=failing_progress, opener=opener)
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_download_and_verify_requires_assets(tmp_path):
