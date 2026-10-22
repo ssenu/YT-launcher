@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtCore import QEvent, QPoint, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QActionGroup
+from PySide6.QtCore import QEvent, QPoint, QPointF, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -22,13 +22,15 @@ from .. import win32
 from ..geometry import Rect
 from ..version import APP_NAME
 from . import themes
-from .palette_icon import ICON_SIZE, palette_icon
+from .icons import MENU_ICON_SIZE, THEME_BUTTON_SIZE, dots_icon, palette_icon
+from .theme_picker import ThemePicker
 from .tile_grid import TileGrid
 
 EDGE = 6
 MIN_W = 240
 MIN_H = 200
 GEOMETRY_SAVE_DELAY_MS = 500
+CORNER_RADIUS = 12
 
 BYLINE = "by_ssenu"
 
@@ -61,20 +63,21 @@ class Header(QWidget):
         self.update_button.setObjectName("updateBadge")
         self.update_button.setCursor(Qt.PointingHandCursor)
         self.update_button.hide()
-        menu_button = QToolButton()
-        menu_button.setObjectName("menuButton")
-        menu_button.setText("⋯")
-        menu_button.setMenu(menu)
-        menu_button.setPopupMode(QToolButton.InstantPopup)
+        self.menu_button = QToolButton()
+        self.menu_button.setObjectName("menuButton")
+        self.menu_button.setIconSize(QSize(MENU_ICON_SIZE, MENU_ICON_SIZE))
+        self.menu_button.setToolTip("메뉴")
+        self.menu_button.setMenu(menu)
+        self.menu_button.setPopupMode(QToolButton.InstantPopup)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 6, 6, 6)
         layout.addWidget(title)
         layout.addSpacing(4)
-        layout.addWidget(byline, 0, Qt.AlignBottom)
+        layout.addWidget(byline, 0, Qt.AlignVCenter)
         layout.addStretch(1)
         layout.addWidget(self.update_button)
-        layout.addWidget(menu_button)
+        layout.addWidget(self.menu_button)
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.LeftButton and self._can_move() and self.window().windowHandle():
@@ -97,6 +100,8 @@ class LauncherWindow(QWidget):
         super().__init__(None, Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnBottomHint)
         self.setObjectName("launcher")
         self.setAttribute(Qt.WA_StyledBackground, True)
+        # 둥근 모서리 바깥은 투명하게 비우고, 배경은 paintEvent에서 직접 그린다.
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setWindowTitle(APP_NAME)
         self.setMinimumSize(MIN_W, MIN_H)
         self.setMouseTracking(True)
@@ -113,24 +118,15 @@ class LauncherWindow(QWidget):
         self.progress.hide()
         self.grid = TileGrid(self)
         self.grid.setObjectName("tileGrid")
-        self.theme_menu = QMenu(self)
-        self._theme_group = QActionGroup(self)
-        self._theme_actions = {}
-        for name, label in themes.THEME_LABELS.items():
-            action = self.theme_menu.addAction(label)
-            action.setCheckable(True)
-            action.setChecked(name == self._theme)
-            action.triggered.connect(lambda _checked=False, n=name: self._choose_theme(n))
-            self._theme_group.addAction(action)
-            self._theme_actions[name] = action
         self.theme_button = QToolButton(self)
         self.theme_button.setObjectName("themeButton")
-        self.theme_button.setIconSize(QSize(ICON_SIZE, ICON_SIZE))
-        self.theme_button.setFixedSize(ICON_SIZE + 2, ICON_SIZE + 2)
+        self.theme_button.setIconSize(QSize(THEME_BUTTON_SIZE, THEME_BUTTON_SIZE))
+        self.theme_button.setFixedSize(THEME_BUTTON_SIZE + 2, THEME_BUTTON_SIZE + 2)
         self.theme_button.setToolTip("테마 색 설정")
-        self.theme_button.setMenu(self.theme_menu)
-        self.theme_button.setPopupMode(QToolButton.InstantPopup)
-        self._refresh_theme_icon()
+        self.theme_button.clicked.connect(self._toggle_theme_picker)
+        self.theme_picker = ThemePicker(self)
+        self.theme_picker.picked.connect(self._choose_theme)
+        self._refresh_icons()
         footer = QHBoxLayout()
         footer.setContentsMargins(0, 0, 2, 2)
         footer.addStretch(1)
@@ -176,12 +172,19 @@ class LauncherWindow(QWidget):
         self._theme = themes.resolve_theme(name)
         self.setStyleSheet(themes.stylesheet(self._theme))
         self.grid.set_add_color(themes.add_tile_color(self._theme))
-        self._refresh_theme_icon()
-        self._theme_actions[self._theme].setChecked(True)
+        self._refresh_icons()
 
-    def _refresh_theme_icon(self) -> None:
+    def _refresh_icons(self) -> None:
         colors = themes.THEMES[self._theme]
-        self.theme_button.setIcon(palette_icon(colors["header"], colors["border"]))
+        self.theme_button.setIcon(palette_icon(colors["header"], colors["border"], colors["title"]))
+        self.header.menu_button.setIcon(dots_icon(colors["muted"]))
+
+    def _toggle_theme_picker(self) -> None:
+        if self.theme_picker.isVisible():
+            self.theme_picker.close_picker()
+            return
+        center = self.theme_button.geometry().center()
+        self.theme_picker.open_at(QPointF(center), self._theme)
 
     def _choose_theme(self, name: str) -> None:
         if name == self._theme:
@@ -203,6 +206,15 @@ class LauncherWindow(QWidget):
 
     def hide_progress(self) -> None:
         self.progress.hide()
+
+    def paintEvent(self, event) -> None:
+        colors = themes.THEMES[self._theme]
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(QPen(QColor(colors["border"]), 1))
+        p.setBrush(QColor(colors["bg"]))
+        p.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), CORNER_RADIUS, CORNER_RADIUS)
+        p.end()
 
     # 바탕화면 레이어
     def showEvent(self, event) -> None:
@@ -229,6 +241,7 @@ class LauncherWindow(QWidget):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
+        self.theme_picker.close_picker()
         self._geometry_timer.start()
 
     def _emit_geometry(self) -> None:

@@ -89,32 +89,60 @@ def test_header_shows_byline(qapp):
     assert labels["byline"] == "by_ssenu"
 
 
-def test_theme_menu_lists_three_themes(qapp):
+def test_theme_picker_lists_three_themes(qapp):
     window = LauncherWindow(QMenu())
     assert window.theme_button.objectName() == "themeButton"
-    assert [a.text() for a in window.theme_menu.actions()] == ["라이트", "다크", "세피아"]
+    assert window.theme_picker.names == ["light", "dark", "sepia"]
     assert window.theme == "dark"
+    assert window.theme_picker.isHidden()
 
 
-def test_choosing_theme_restyles_and_emits(qapp):
+def test_theme_button_opens_arc_and_click_picks(qapp):
+    from PySide6.QtCore import QPointF
+    from PySide6.QtTest import QTest
+
     from yt_launcher.ui import themes
     from yt_launcher.ui.tile_grid import ADD_ID, COLOR_ROLE, ID_ROLE
 
     window = LauncherWindow(QMenu())
+    window.resize(360, 400)
     window.set_tiles([Tile(query="a")])
     got = []
     window.theme_changed.connect(got.append)
-    light = window.theme_menu.actions()[0]
-    light.trigger()
+    window.theme_button.click()
+    picker = window.theme_picker
+    assert not picker.isHidden()
+    picker._anim.stop()
+    picker._on_progress(1.0)  # 애니메이션 끝 상태
+    anchor = QPointF(window.theme_button.geometry().center())
+    centers = [picker.swatch_center(n) for n in picker.names]
+    # 모든 원이 버튼의 위·왼쪽 부채꼴 위에 놓인다
+    assert all(c.x() <= anchor.x() + 0.5 and c.y() <= anchor.y() + 0.5 for c in centers)
+    light = picker.swatch_center("light").toPoint()
+    QTest.mouseClick(picker, Qt.LeftButton, pos=light)
     assert got == ["light"]
     assert window.theme == "light"
-    assert light.isChecked()
-    assert themes.THEMES["light"]["bg"] in window.styleSheet()
+    assert picker.isHidden()
+    assert themes.THEMES["light"]["header"] in window.styleSheet()
     add_item = window.grid.item(window.grid.count() - 1)
     assert add_item.data(ID_ROLE) == ADD_ID
     assert add_item.data(COLOR_ROLE) == themes.THEMES["light"]["add"]
-    light.trigger()  # 같은 테마를 다시 고르면 신호 없음
-    assert got == ["light"]
+
+
+def test_clicking_empty_area_closes_picker_without_change(qapp):
+    from PySide6.QtCore import QPoint
+    from PySide6.QtTest import QTest
+
+    window = LauncherWindow(QMenu())
+    window.resize(360, 400)
+    got = []
+    window.theme_changed.connect(got.append)
+    window.theme_button.click()
+    QTest.mouseClick(window.theme_picker, Qt.LeftButton, pos=QPoint(10, 200))
+    assert window.theme_picker.isHidden()
+    assert got == []
+    window._choose_theme("dark")  # 같은 테마는 신호 없음
+    assert got == []
 
 
 def test_set_theme_keeps_add_color_after_retile(qapp):
@@ -136,7 +164,23 @@ def test_unknown_theme_falls_back_to_dark(qapp):
 def test_theme_button_uses_drawn_palette_icon(qapp):
     window = LauncherWindow(QMenu())
     assert window.theme_button.text() == ""
+    assert window.theme_button.width() >= 40
+    assert window.header.menu_button.text() == ""
+    assert not window.header.menu_button.icon().isNull()
     assert not window.theme_button.icon().isNull()
     before = window.theme_button.icon().pixmap(30).toImage()
     window.set_theme("light")
     assert window.theme_button.icon().pixmap(30).toImage() != before  # 테마에 맞춰 다시 그림
+
+
+def test_window_has_rounded_translucent_corners(qapp):
+    window = LauncherWindow(QMenu())
+    from PySide6.QtGui import QColor
+
+    from yt_launcher.ui import themes
+
+    assert window.testAttribute(Qt.WA_TranslucentBackground)
+    window.resize(300, 300)
+    image = window.grab().toImage()
+    assert image.pixelColor(0, 0).alpha() == 0  # 모서리 바깥은 투명
+    assert image.pixelColor(150, 290).name().upper() == QColor(themes.THEMES["dark"]["bg"]).name().upper()

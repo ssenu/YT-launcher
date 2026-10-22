@@ -135,7 +135,7 @@ def test_theme_change_persists_and_restores(qapp, tmp_path):
     storage = Storage(tmp_path)
     app = make_app(qapp, storage)
     assert app.window.theme == "dark"
-    app.window.theme_menu.actions()[2].trigger()  # 세피아
+    app.window._choose_theme("sepia")
     assert storage.load()[0].theme == "sepia"
     app2 = make_app(qapp, storage)
     assert app2.window.theme == "sepia"

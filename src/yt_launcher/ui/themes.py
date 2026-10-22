@@ -45,13 +45,12 @@ THEMES = {
 }
 
 _STYLE = """
-#launcher {{ background: {bg}; border: 1px solid {border}; }}
-#header {{ background: {header}; }}
+#header {{ background: {header}; border-radius: 8px; }}
 #title {{ color: {title}; font-weight: bold; font-size: 13px; }}
 #byline {{ color: {byline}; font-size: 10px; }}
 #updateBadge {{ background: #E53935; color: #FFFFFF; border: none; border-radius: 9px;
                padding: 2px 10px; font-weight: bold; }}
-#menuButton {{ color: {muted}; background: transparent; border: none; font-size: 16px; padding: 0 6px; }}
+#menuButton {{ background: transparent; border: none; padding: 0 2px; }}
 #menuButton::menu-indicator {{ image: none; }}
 #themeButton {{ background: transparent; border: none; padding: 0; }}
 #themeButton::menu-indicator {{ image: none; }}
