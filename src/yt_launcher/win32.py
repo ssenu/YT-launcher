@@ -12,6 +12,7 @@ log = logging.getLogger(__name__)
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+dwmapi = ctypes.WinDLL("dwmapi")
 
 SW_MAXIMIZE = 3
 HWND_BOTTOM = wintypes.HWND(1)
@@ -192,3 +193,46 @@ def acquire_mutex(name: str) -> tuple[int | None, bool]:
 
 def create_mutex(name: str) -> int | None:
     return acquire_mutex(name)[0]
+
+
+DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+DWMWA_WINDOW_CORNER_PREFERENCE = 33
+DWMWA_SYSTEMBACKDROP_TYPE = 38
+DWMWCP_ROUND = 2
+DWMSBT_TRANSIENTWINDOW = 3  # 아크릴(뒤가 흐리게 비치는 재질)
+
+
+class MARGINS(ctypes.Structure):
+    _fields_ = [
+        ("cxLeftWidth", ctypes.c_int),
+        ("cxRightWidth", ctypes.c_int),
+        ("cyTopHeight", ctypes.c_int),
+        ("cyBottomHeight", ctypes.c_int),
+    ]
+
+
+dwmapi.DwmSetWindowAttribute.argtypes = [wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD]
+dwmapi.DwmSetWindowAttribute.restype = ctypes.c_long
+dwmapi.DwmExtendFrameIntoClientArea.argtypes = [wintypes.HWND, ctypes.POINTER(MARGINS)]
+dwmapi.DwmExtendFrameIntoClientArea.restype = ctypes.c_long
+
+
+def _set_dwm_int(hwnd: int, attribute: int, value: int) -> bool:
+    data = ctypes.c_int(value)
+    return dwmapi.DwmSetWindowAttribute(hwnd, attribute, ctypes.byref(data), ctypes.sizeof(data)) == 0
+
+
+def set_dark_mode(hwnd: int, dark: bool) -> bool:
+    """블러 배경의 밝기 톤(어두운/밝은)을 정한다."""
+    return bool(hwnd) and _set_dwm_int(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, int(dark))
+
+
+def enable_backdrop(hwnd: int, dark: bool) -> bool:
+    """Windows 11 아크릴 배경을 켠다. 지원하지 않는 Windows(10 등)면 False."""
+    if not hwnd:
+        return False
+    set_dark_mode(hwnd, dark)
+    _set_dwm_int(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND)
+    margins = MARGINS(-1, -1, -1, -1)
+    dwmapi.DwmExtendFrameIntoClientArea(hwnd, ctypes.byref(margins))
+    return _set_dwm_int(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, DWMSBT_TRANSIENTWINDOW)

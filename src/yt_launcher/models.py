@@ -6,16 +6,29 @@ import uuid
 import zlib
 from dataclasses import asdict, dataclass, field
 
+# 채도를 낮춘 차분한 색 (테라코타, 더스티 로즈, 플럼, 더스티 블루, 스틸 블루, 세이지 틸, 세이지, 앰버)
 PALETTE = (
-    "#E53935",
-    "#D81B60",
-    "#8E24AA",
-    "#3949AB",
-    "#1E88E5",
-    "#00897B",
-    "#43A047",
-    "#F4511E",
+    "#B5544C",
+    "#B0577A",
+    "#7E5A9B",
+    "#4F6A9E",
+    "#3F7F94",
+    "#4E8A78",
+    "#6E8F57",
+    "#C07A45",
 )
+
+# v0.1.3 이전 원색 팔레트 → 같은 자리의 새 색 (저장된 타일 색을 그대로 옮긴다)
+LEGACY_COLORS = dict(
+    zip(
+        ("#E53935", "#D81B60", "#8E24AA", "#3949AB", "#1E88E5", "#00897B", "#43A047", "#F4511E"),
+        PALETTE,
+    )
+)
+
+
+def migrate_color(color: str) -> str:
+    return LEGACY_COLORS.get(color.upper(), color)
 
 
 def auto_color(text: str) -> str:
@@ -40,7 +53,7 @@ class Tile:
 
     @property
     def display_color(self) -> str:
-        return self.color or auto_color(self.query)
+        return migrate_color(self.color) if self.color else auto_color(self.query)
 
     def to_dict(self) -> dict:
         return asdict(self)

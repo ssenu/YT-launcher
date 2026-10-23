@@ -4,10 +4,23 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtCore import QEvent, QPoint, QPointF, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import (
+    QEasingCurve,
+    QEvent,
+    QPoint,
+    QPointF,
+    QPropertyAnimation,
+    QRectF,
+    QSize,
+    Qt,
+    QTimer,
+    Signal,
+)
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QApplication,
+    QGraphicsDropShadowEffect,
+    QGraphicsOpacityEffect,
     QHBoxLayout,
     QLabel,
     QMenu,
@@ -31,6 +44,9 @@ MIN_W = 240
 MIN_H = 200
 GEOMETRY_SAVE_DELAY_MS = 500
 CORNER_RADIUS = 12
+SYSTEM_CORNER_RADIUS = 8
+PADDING = 14  # 창 안쪽 여백
+THEME_FADE_MS = 200
 
 BYLINE = "by_ssenu"
 
@@ -71,7 +87,7 @@ class Header(QWidget):
         self.menu_button.setPopupMode(QToolButton.InstantPopup)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(10, 6, 6, 6)
+        layout.setContentsMargins(4, 2, 0, 10)
         layout.addWidget(title)
         layout.addSpacing(4)
         layout.addWidget(byline, 0, Qt.AlignVCenter)
@@ -109,6 +125,8 @@ class LauncherWindow(QWidget):
         self.setStyleSheet(themes.stylesheet(self._theme))
         self._locked = False
         self._pinned = False
+        self._backdrop = False  # Windows 11 아크릴 배경이 켜졌는지
+        self._fade: QLabel | None = None
 
         self.header = Header(menu, lambda: not self._locked, self)
         self.progress = QProgressBar(self)
@@ -124,6 +142,11 @@ class LauncherWindow(QWidget):
         self.theme_button.setFixedSize(THEME_BUTTON_SIZE + 2, THEME_BUTTON_SIZE + 2)
         self.theme_button.setToolTip("테마 색 설정")
         self.theme_button.clicked.connect(self._toggle_theme_picker)
+        shadow = QGraphicsDropShadowEffect(self.theme_button)
+        shadow.setBlurRadius(18)
+        shadow.setOffset(0, 3)
+        shadow.setColor(QColor(0, 0, 0, 90))
+        self.theme_button.setGraphicsEffect(shadow)
         self.theme_picker = ThemePicker(self)
         self.theme_picker.picked.connect(self._choose_theme)
         self._refresh_icons()
@@ -136,8 +159,8 @@ class LauncherWindow(QWidget):
             child.setCursor(Qt.ArrowCursor)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(EDGE, EDGE, EDGE, EDGE)
-        layout.setSpacing(0)
+        layout.setContentsMargins(PADDING, PADDING - 2, PADDING - 4, PADDING - 6)
+        layout.setSpacing(8)
         layout.addWidget(self.header)
         layout.addWidget(self.progress)
         layout.addWidget(self.grid, 1)
@@ -173,6 +196,9 @@ class LauncherWindow(QWidget):
         self.setStyleSheet(themes.stylesheet(self._theme))
         self.grid.set_add_color(themes.add_tile_color(self._theme))
         self._refresh_icons()
+        if self._backdrop:
+            win32.set_dark_mode(int(self.winId()), themes.THEMES[self._theme]["dark"])
+        self.update()
 
     def _refresh_icons(self) -> None:
         colors = themes.THEMES[self._theme]
@@ -189,8 +215,34 @@ class LauncherWindow(QWidget):
     def _choose_theme(self, name: str) -> None:
         if name == self._theme:
             return
+        self._start_theme_fade()
         self.set_theme(name)
         self.theme_changed.emit(self._theme)
+
+    def _start_theme_fade(self) -> None:
+        """이전 모습을 캡처해 덮어 두고 서서히 투명하게 만들어 새 테마로 자연스럽게 넘어간다."""
+        if self._fade is not None:
+            self._fade.deleteLater()
+        fade = QLabel(self)
+        fade.setPixmap(self.grab())
+        fade.setGeometry(self.rect())
+        fade.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        effect = QGraphicsOpacityEffect(fade)
+        fade.setGraphicsEffect(effect)
+        fade.show()
+        fade.raise_()
+        anim = QPropertyAnimation(effect, b"opacity", fade)
+        anim.setDuration(THEME_FADE_MS)
+        anim.setStartValue(1.0)
+        anim.setEndValue(0.0)
+        anim.setEasingCurve(QEasingCurve.InOutQuad)
+        anim.finished.connect(fade.deleteLater)
+        anim.finished.connect(self._clear_fade)
+        anim.start()
+        self._fade = fade
+
+    def _clear_fade(self) -> None:
+        self._fade = None
 
     def show_update_badge(self, text: str) -> None:
         self.header.update_button.setText(text)
@@ -212,8 +264,13 @@ class LauncherWindow(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         p.setPen(QPen(QColor(colors["border"]), 1))
-        p.setBrush(QColor(colors["bg"]))
-        p.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), CORNER_RADIUS, CORNER_RADIUS)
+        bg = QColor(colors["bg"])
+        if self._backdrop:
+            bg.setAlpha(colors["alpha"])  # 뒤의 블러가 은은하게 비치도록
+        p.setBrush(bg)
+        # 블러 배경은 Windows가 자체 반경(약 8px)으로 둥글게 자르므로 그에 맞춘다.
+        radius = SYSTEM_CORNER_RADIUS if self._backdrop else CORNER_RADIUS
+        p.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), radius, radius)
         p.end()
 
     # 바탕화면 레이어
@@ -222,6 +279,8 @@ class LauncherWindow(QWidget):
         hwnd = int(self.winId())
         if not self._pinned:
             self._pinned = win32.pin_to_desktop(hwnd)
+            self._backdrop = win32.enable_backdrop(hwnd, themes.THEMES[self._theme]["dark"])
+            self.update()
         win32.send_to_bottom(hwnd)
 
     def changeEvent(self, event) -> None:

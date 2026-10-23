@@ -14,6 +14,8 @@ THEME_LABELS = {
 THEMES = {
     "dark": {
         "bg": "#16181D",
+        "alpha": 200,
+        "dark": True,
         "border": "#2A2E37",
         "header": "#1F232B",
         "title": "#F1F3F5",
@@ -24,6 +26,8 @@ THEMES = {
     },
     "light": {
         "bg": "#F7F8FA",
+        "alpha": 215,
+        "dark": False,
         "border": "#D5D9E0",
         "header": "#FFFFFF",
         "title": "#1F232B",
@@ -34,6 +38,8 @@ THEMES = {
     },
     "sepia": {
         "bg": "#F4ECD8",
+        "alpha": 220,
+        "dark": False,
         "border": "#D8C9A7",
         "header": "#EADFC4",
         "title": "#4B3A26",
@@ -45,9 +51,9 @@ THEMES = {
 }
 
 _STYLE = """
-#header {{ background: {header}; border-radius: 8px; }}
-#title {{ color: {title}; font-weight: bold; font-size: 13px; }}
-#byline {{ color: {byline}; font-size: 10px; }}
+#header {{ background: transparent; border: none; border-bottom: 1px solid {border}; }}
+#title {{ color: {title}; font-weight: 700; font-size: 15px; letter-spacing: -0.3px; }}
+#byline {{ color: {byline}; font-size: 11px; }}
 #updateBadge {{ background: #E53935; color: #FFFFFF; border: none; border-radius: 9px;
                padding: 2px 10px; font-weight: bold; }}
 #menuButton {{ background: transparent; border: none; padding: 0 2px; }}

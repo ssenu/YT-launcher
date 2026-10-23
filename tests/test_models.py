@@ -5,7 +5,7 @@ from yt_launcher.models import PALETTE, Tile, auto_color
 
 def test_palette_has_eight_colors():
     assert len(PALETTE) == 8
-    assert PALETTE[0] == "#E53935"
+    assert PALETTE[0] == "#B5544C"
 
 
 def test_label_falls_back_to_query():
@@ -45,3 +45,12 @@ def test_from_dict_rejects_empty_or_missing_query():
         Tile.from_dict({"query": "   "})
     with pytest.raises(KeyError):
         Tile.from_dict({"name": "x"})
+
+
+def test_legacy_bright_colors_map_to_muted_palette():
+    from yt_launcher.models import migrate_color
+
+    assert migrate_color("#E53935") == PALETTE[0]
+    assert migrate_color("#f4511e") == PALETTE[7]
+    assert migrate_color("#123456") == "#123456"
+    assert Tile(query="a", color="#1E88E5").display_color == PALETTE[4]

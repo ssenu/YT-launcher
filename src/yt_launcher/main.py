@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QApplication
 
 from . import win32
 from .app import LauncherApp
+from .resources import apply_app_font
 from .single_instance import SingleInstance
 from .storage import Storage, default_dir
 from .version import APP_NAME, MUTEX_NAME, __version__
@@ -40,6 +41,7 @@ def main() -> int:
     logging.getLogger(__name__).info("YT Launcher %s 시작", __version__)
 
     app = QApplication(sys.argv)
+    apply_app_font(app)
     app.setApplicationName(APP_NAME)
     app.setQuitOnLastWindowClosed(False)
 

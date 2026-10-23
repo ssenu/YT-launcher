@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QToolButton,
 )
 
-from ..models import PALETTE, Tile
+from ..models import PALETTE, Tile, migrate_color
 
 
 class TileDialog(QDialog):
@@ -40,7 +40,7 @@ class TileDialog(QDialog):
             button = self._color_button(color, "")
             self.color_buttons[color] = button
             colors.addWidget(button)
-        current = tile.color if tile else ""
+        current = migrate_color(tile.color) if tile else ""
         (self.color_buttons.get(current) or self.auto_button).setChecked(True)
 
         self.buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)

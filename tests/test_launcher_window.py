@@ -184,3 +184,31 @@ def test_window_has_rounded_translucent_corners(qapp):
     image = window.grab().toImage()
     assert image.pixelColor(0, 0).alpha() == 0  # 모서리 바깥은 투명
     assert image.pixelColor(150, 290).name().upper() == QColor(themes.THEMES["dark"]["bg"]).name().upper()
+
+
+def test_theme_change_fades_from_previous_look(qapp):
+    from PySide6.QtWidgets import QGraphicsOpacityEffect
+
+    window = LauncherWindow(QMenu())
+    window.resize(300, 300)
+    window._choose_theme("sepia")
+    assert window._fade is not None
+    assert window._fade.geometry() == window.rect()
+    assert isinstance(window._fade.graphicsEffect(), QGraphicsOpacityEffect)
+
+
+def test_backdrop_makes_background_translucent(qapp):
+    from yt_launcher.ui import themes
+
+    window = LauncherWindow(QMenu())
+    window.resize(300, 300)
+    window._backdrop = True
+    image = window.grab().toImage()
+    assert image.pixelColor(150, 290).alpha() == themes.THEMES["dark"]["alpha"]
+
+
+def test_backdrop_helpers_reject_invalid_window():
+    from yt_launcher import win32
+
+    assert win32.enable_backdrop(0, True) is False
+    assert win32.set_dark_mode(0, False) is False
